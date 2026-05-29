@@ -1,0 +1,15 @@
+# Built application
+/build
+/app/build
+.gradle
+.idea
+local.properties
+*.iml
+captures/
+.cxx/
+
+# Local agent/dev artifacts
+.kotlin/
+*-log.txt
+debug-logcat.txt
+

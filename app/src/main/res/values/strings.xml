@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Speedometer</string>
+    <string name="channel_tracking_name">Trip tracking</string>
+    <string name="channel_tracking_desc">Ongoing speedometer and location logging</string>
+</resources>
