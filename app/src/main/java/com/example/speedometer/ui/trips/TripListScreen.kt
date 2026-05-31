@@ -56,7 +56,7 @@ fun TripListScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("No trips yet. Start one from the Drive tab.")
+            Text("No trips yet. Start one from the Live tab.")
             OutlinedButton(
                 onClick = { vm.createDemoTripToTokyo() },
                 modifier = Modifier.padding(top = 16.dp)

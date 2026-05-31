@@ -23,7 +23,7 @@ import com.example.speedometer.ui.tripdetail.TripDetailScreen
 import com.example.speedometer.ui.trips.TripListScreen
 
 sealed class Dest(val route: String, val label: String) {
-    data object Live : Dest("live", "Drive")
+    data object Live : Dest("live", "Live")
     data object Trips : Dest("trips", "Trips")
     data object Settings : Dest("settings", "Settings")
     data object TripDetail : Dest("trip/{id}", "Trip") {

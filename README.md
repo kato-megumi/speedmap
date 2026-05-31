@@ -10,7 +10,7 @@ GSI pale, and GSI aerial photo also selectable in Settings.
 
 ## Highlights
 
-- **Live Drive tab** — large speedometer plus an optional embedded mini-map
+- **Live tab** — large speedometer plus an optional embedded mini-map
   that follows your fix, with North / center-on-location controls.
 - **Trip recording** — fine-grained GPS captured in a foreground service so
   logging continues while the screen is off or the app is backgrounded.
@@ -32,10 +32,10 @@ GSI pale, and GSI aerial photo also selectable in Settings.
 
 ## Screenshots
 
-> _Placeholder — drop `docs/screenshots/{drive,trips,detail,settings}.png`
+> _Placeholder — drop `docs/screenshots/{live,trips,detail,settings}.png`
 > into the repo and reference them here._
 
-| Drive | Trips | Trip detail | Settings |
+| Live | Trips | Trip detail | Settings |
 | ----- | ----- | ----------- | -------- |
 |       |       |             |          |
 
@@ -51,7 +51,7 @@ app/src/main/java/com/example/speedometer/
   export/                  # GPX writer + FileProvider share
   util/                    # Distance / duration formatters
   ui/
-    live/                  # Drive tab + LiveMiniMap composable
+    live/                  # Live tab + LiveMiniMap composable
     trips/                 # Trip list
     tripdetail/            # Map + stats + colour-mode legend
     settings/              # Unit, tile source, live-map toggle, cache controls
@@ -60,7 +60,7 @@ app/src/main/java/com/example/speedometer/
 
 ## Permissions
 
-On first start, the Drive tab requests:
+On first start, the Live tab requests:
 
 1. `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`
    (+ `POST_NOTIFICATIONS` on Android 13+)

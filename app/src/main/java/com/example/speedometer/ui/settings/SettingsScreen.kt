@@ -115,7 +115,7 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
             )
         }
 
-        Section("Drive screen") {
+        Section("Live screen") {
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -123,7 +123,7 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
                 Column(Modifier.weight(1f)) {
                     Text("Show live map")
                     Text(
-                        "Embed a small map on the Drive tab that follows " +
+                        "Embed a small map on the Live tab that follows " +
                             "your current location.",
                         style = MaterialTheme.typography.bodySmall
                     )
