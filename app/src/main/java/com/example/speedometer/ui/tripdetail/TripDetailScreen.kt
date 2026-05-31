@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,6 +76,7 @@ import org.maplibre.android.style.layers.BackgroundLayer
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -268,6 +270,7 @@ private fun Stat(label: String, value: String, modifier: Modifier = Modifier) {
 // =========================================================================
 
 private const val ROUTE_SOURCE = "route-src"
+private const val ROUTE_CASING_LAYER = "route-casing-layer"
 private const val ROUTE_LAYER = "route-layer"
 private const val ENDPOINTS_SOURCE = "endpoints-src"
 private const val START_LAYER = "endpoint-start-layer"
@@ -287,6 +290,14 @@ private class RouteColorScheme(
     fun colorFor(p: LocationPoint): Int = when (mode) {
         RouteColorMode.Speed -> colorForSpeed(p.speedMps, maxSpeedMps)
         RouteColorMode.Elevation -> colorForAltitude(p.altitude ?: minAlt, minAlt, maxAlt)
+    }
+    /** Color for a segment between two points — uses midpoint speed/altitude for smooth blending. */
+    fun colorFor(a: LocationPoint, b: LocationPoint): Int = when (mode) {
+        RouteColorMode.Speed -> colorForSpeed((a.speedMps + b.speedMps) / 2f, maxSpeedMps)
+        RouteColorMode.Elevation -> {
+            val midAlt = ((a.altitude ?: minAlt) + (b.altitude ?: minAlt)) / 2.0
+            colorForAltitude(midAlt, minAlt, maxAlt)
+        }
     }
     fun bucketOf(p: LocationPoint): Int = when (mode) {
         RouteColorMode.Speed -> speedBucket(p.speedMps, maxSpeedMps)
@@ -370,7 +381,25 @@ private fun TripMap(
 
 private fun installRouteLayers(style: Style) {
     if (style.getSource(ROUTE_SOURCE) == null) {
-        style.addSource(GeoJsonSource(ROUTE_SOURCE, FeatureCollection.fromFeatures(emptyArray<Feature>())))
+        style.addSource(
+            GeoJsonSource(
+                ROUTE_SOURCE,
+                FeatureCollection.fromFeatures(emptyArray<Feature>()),
+                GeoJsonOptions().withTolerance(0f)
+            )
+        )
+    }
+    // Dark border/casing beneath the colored route for visibility.
+    if (style.getLayer(ROUTE_CASING_LAYER) == null) {
+        style.addLayer(
+            LineLayer(ROUTE_CASING_LAYER, ROUTE_SOURCE).withProperties(
+                PropertyFactory.lineWidth(8f),
+                PropertyFactory.lineColor(AndroidColor.rgb(30, 30, 30)),
+                PropertyFactory.lineOpacity(0.7f),
+                PropertyFactory.lineCap("round"),
+                PropertyFactory.lineJoin("round")
+            )
+        )
     }
     if (style.getLayer(ROUTE_LAYER) == null) {
         style.addLayer(
@@ -446,31 +475,18 @@ private class TripMapHolder {
             source.setGeoJson(FeatureCollection.fromFeatures(emptyArray<Feature>()))
             return
         }
-        val features = ArrayList<Feature>()
-        var segment = ArrayList<Point>()
-        segment.add(Point.fromLngLat(points[0].longitude, points[0].latitude))
-        var lastBucket = scheme.bucketOf(points[0])
-        var lastColor = scheme.colorFor(points[0])
-        for (i in 1 until points.size) {
-            val p = points[i]
-            val bucket = scheme.bucketOf(p)
-            segment.add(Point.fromLngLat(p.longitude, p.latitude))
-            if (bucket != lastBucket) {
-                features.add(
-                    Feature.fromGeometry(LineString.fromLngLats(segment)).apply {
-                        addStringProperty("color", colorHex(lastColor))
-                    }
-                )
-                segment = ArrayList()
-                segment.add(Point.fromLngLat(p.longitude, p.latitude))
-                lastBucket = bucket
-                lastColor = scheme.colorFor(p)
-            }
-        }
-        if (segment.size >= 2) {
+        val features = ArrayList<Feature>(points.size - 1)
+        for (i in 0 until points.size - 1) {
+            val a = points[i]
+            val b = points[i + 1]
+            val color = scheme.colorFor(a, b)
+            val seg = listOf(
+                Point.fromLngLat(a.longitude, a.latitude),
+                Point.fromLngLat(b.longitude, b.latitude)
+            )
             features.add(
-                Feature.fromGeometry(LineString.fromLngLats(segment)).apply {
-                    addStringProperty("color", colorHex(lastColor))
+                Feature.fromGeometry(LineString.fromLngLats(seg)).apply {
+                    addStringProperty("color", colorHex(color))
                 }
             )
         }
@@ -606,24 +622,19 @@ private fun ColorModeToggle(mode: RouteColorMode, onChange: (RouteColorMode) -> 
 
 @Composable
 private fun AltitudeLegend(minAlt: Double, maxAlt: Double) {
-    val stops = 24
+    val gradientStops = 32
+    val colors = (0 until gradientStops).map { i ->
+        val alt = minAlt + (i.toDouble() / (gradientStops - 1)) * (maxAlt - minAlt)
+        Color(colorForAltitude(alt, minAlt, maxAlt))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(10.dp)
                 .clip(RoundedCornerShape(4.dp))
-        ) {
-            for (i in 0 until stops) {
-                val alt = minAlt + (i.toDouble() / (stops - 1)) * (maxAlt - minAlt)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                        .background(Color(colorForAltitude(alt, minAlt, maxAlt)))
-                )
-            }
-        }
+                .background(Brush.horizontalGradient(colors))
+        )
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
                 "${minAlt.toInt()} m",
@@ -651,24 +662,19 @@ private fun SpeedLegend(
     unit: com.example.speedometer.settings.SpeedUnit,
     maxMps: Float
 ) {
-    val stops = 24
+    val gradientStops = 32
+    val colors = (0 until gradientStops).map { i ->
+        val mps = (i.toFloat() / (gradientStops - 1)) * maxMps
+        Color(colorForSpeed(mps, maxMps))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(10.dp)
                 .clip(RoundedCornerShape(4.dp))
-        ) {
-            for (i in 0 until stops) {
-                val mps = (i.toFloat() / (stops - 1)) * maxMps
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize()
-                        .background(Color(colorForSpeed(mps, maxMps)))
-                )
-            }
-        }
+                .background(Brush.horizontalGradient(colors))
+        )
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
                 "${unit.format(0f)} ${unit.label}",
@@ -700,32 +706,38 @@ private fun colorForSpeed(mps: Float, maxMps: Float): Int {
 }
 
 /**
- * Elevation colormap: green (low) → yellow → brown → white (high).
- * Mimics a topographic hypsometric tint.
+ * Elevation colormap: dark green (low) → light green → yellow → orange → red (high).
  */
 private fun colorForAltitude(alt: Double, minAlt: Double, maxAlt: Double): Int {
     val range = (maxAlt - minAlt).coerceAtLeast(1.0)
     val t = ((alt - minAlt) / range).coerceIn(0.0, 1.0).toFloat()
     return when {
-        t < 0.33f -> {
-            val u = t / 0.33f
-            // green (40,140,60) -> yellow (220,200,60)
+        t < 0.25f -> {
+            val u = t / 0.25f
+            // dark green (27,94,32) -> light green (104,159,56)
             AndroidColor.rgb(
-                lerp(40, 220, u), lerp(140, 200, u), lerp(60, 60, u)
+                lerp(27, 104, u), lerp(94, 159, u), lerp(32, 56, u)
             )
         }
-        t < 0.66f -> {
-            val u = (t - 0.33f) / 0.33f
-            // yellow -> brown (140, 90, 50)
+        t < 0.50f -> {
+            val u = (t - 0.25f) / 0.25f
+            // light green (104,159,56) -> yellow (251,192,45)
             AndroidColor.rgb(
-                lerp(220, 140, u), lerp(200, 90, u), lerp(60, 50, u)
+                lerp(104, 251, u), lerp(159, 192, u), lerp(56, 45, u)
+            )
+        }
+        t < 0.75f -> {
+            val u = (t - 0.50f) / 0.25f
+            // yellow (251,192,45) -> orange (230,124,25)
+            AndroidColor.rgb(
+                lerp(251, 230, u), lerp(192, 124, u), lerp(45, 25, u)
             )
         }
         else -> {
-            val u = (t - 0.66f) / 0.34f
-            // brown -> white
+            val u = (t - 0.75f) / 0.25f
+            // orange (230,124,25) -> red (198,40,40)
             AndroidColor.rgb(
-                lerp(140, 245, u), lerp(90, 245, u), lerp(50, 250, u)
+                lerp(230, 198, u), lerp(124, 40, u), lerp(25, 40, u)
             )
         }
     }
